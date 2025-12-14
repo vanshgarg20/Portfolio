@@ -19,9 +19,6 @@ app.use(
   })
 );
 
-// ❌ Ye line hata di – ye hi error ka reason tha
-// app.options("*", cors());
-
 app.use(express.json());
 
 // 🛢️ MongoDB connection
@@ -54,18 +51,20 @@ const contactSchema = new mongoose.Schema(
 
 const Contact = mongoose.model("Contact", contactSchema);
 
-// 📧 Nodemailer transporter
+// 📧 Nodemailer transporter – Gmail SMTP + App Password
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true, // 465 = SSL
   auth: {
-    user: process.env.EMAIL_USER, // sender gmail
-    pass: process.env.EMAIL_PASS, // app password
+    user: process.env.EMAIL_USER, // your Gmail
+    pass: process.env.EMAIL_PASS, // Gmail App Password (16 chars, no spaces)
   },
   logger: true,
   debug: true,
 });
 
-// Startup pe check
+// Startup pe check (sirf log karega)
 transporter.verify((err, success) => {
   if (err) {
     console.error("❌ Nodemailer verify error:", err.message);
@@ -95,11 +94,22 @@ app.post("/api/contact", async (req, res) => {
     const newContact = await Contact.create({ name, email, message });
     console.log("✅ Contact saved with id:", newContact._id);
 
-    // 2) Tumhe email bhejna
+    // 2) Email bhejo
     const recipients = [
       process.env.EMAIL_TO,
       process.env.EMAIL_USER,
     ].filter(Boolean);
+
+    if (recipients.length === 0) {
+      console.error("❌ No EMAIL_TO / EMAIL_USER configured");
+      return res.status(500).json({
+        success: false,
+        error:
+          "Email configuration missing on server. Please try again later.",
+      });
+    }
+
+    console.log("📧 Sending email to:", recipients);
 
     const mailOptions = {
       from: `"Portfolio Contact" <${process.env.EMAIL_USER}>`,
@@ -124,14 +134,14 @@ app.post("/api/contact", async (req, res) => {
       info.response
     );
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: "Message saved & email sent successfully!",
       id: newContact._id,
     });
   } catch (error) {
     console.error("❌ Error in /api/contact:", error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message || "Internal server error.",
     });
