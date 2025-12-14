@@ -19,8 +19,8 @@ app.use(
   })
 );
 
-// Preflight OPTIONS ko handle karne ke liye
-app.options("*", cors());
+// ❌ Ye line hata di – ye hi error ka reason tha
+// app.options("*", cors());
 
 app.use(express.json());
 
