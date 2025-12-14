@@ -1,5 +1,6 @@
+// src/components/Contact.tsx
+import React, { useState } from "react";
 import { Send } from "lucide-react";
-import { useState } from "react";
 
 type FormStatus = "idle" | "loading" | "success" | "error";
 
@@ -52,7 +53,7 @@ export default function Contact() {
       setStatus("success");
       setFormData({ name: "", email: "", message: "" });
 
-      // reset back to idle after a few seconds
+      // few seconds baad message hatane ke liye
       setTimeout(() => setStatus("idle"), 4000);
     } catch (err: unknown) {
       console.error("Contact submit error:", err);
