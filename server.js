@@ -13,19 +13,18 @@ const PORT = process.env.PORT || 5000;
 // ---------- CORS + JSON ----------
 app.use(
   cors({
-    origin: "*", // Vercel, localhost, sab allowed
+    origin: "*", // Vercel, localhost sab allowed
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type"],
   })
 );
-
 app.use(express.json());
 
 // ---------- MongoDB ----------
 const MONGODB_URI = process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
-  console.error("❌ MONGODB_URI not found in .env file");
+  console.error("❌ MONGODB_URI not found in env");
   process.exit(1);
 }
 
@@ -51,12 +50,11 @@ const Contact = mongoose.model("Contact", contactSchema);
 
 // ---------- Resend client ----------
 const resendApiKey = process.env.RESEND_API_KEY;
+const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
 if (!resendApiKey) {
-  console.warn("⚠️ RESEND_API_KEY not set. Emails will not be sent.");
+  console.warn("⚠️ RESEND_API_KEY not set. Emails will NOT be sent.");
 }
-
-const resend = new Resend(resendApiKey);
 
 // ---------- Routes ----------
 app.get("/", (_req, res) => {
@@ -74,14 +72,14 @@ app.post("/api/contact", async (req, res) => {
         .json({ success: false, error: "All fields are required." });
     }
 
-    // 1️⃣ DB me save
+    // 1️⃣ Save to DB
     const newContact = await Contact.create({ name, email, message });
     console.log("✅ Contact saved with id:", newContact._id);
 
-    // 2️⃣ Resend se email bhejne ki koshish
+    // 2️⃣ Try sending email via Resend
     let emailSent = false;
 
-    if (resendApiKey && process.env.EMAIL_TO) {
+    if (resend && process.env.EMAIL_TO) {
       try {
         const result = await resend.emails.send({
           from: "Portfolio Contact <onboarding@resend.dev>",
