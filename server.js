@@ -3,17 +3,17 @@ import express from "express";
 import cors from "cors";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// CORS
+// ---------- CORS + JSON ----------
 app.use(
   cors({
-    origin: "*",
+    origin: "*", // Vercel, localhost, sab allowed
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type"],
   })
@@ -21,7 +21,7 @@ app.use(
 
 app.use(express.json());
 
-// MongoDB
+// ---------- MongoDB ----------
 const MONGODB_URI = process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
@@ -37,7 +37,7 @@ mongoose
     process.exit(1);
   });
 
-// Schema
+// ---------- Schema & Model ----------
 const contactSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
@@ -49,28 +49,20 @@ const contactSchema = new mongoose.Schema(
 
 const Contact = mongoose.model("Contact", contactSchema);
 
-// Nodemailer (Gmail SMTP)
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  logger: true,
-  debug: true,
-});
+// ---------- Resend client ----------
+const resendApiKey = process.env.RESEND_API_KEY;
 
-// ❌ verify hata diya – yahi timeout kar raha tha
-// transporter.verify(...)
+if (!resendApiKey) {
+  console.warn("⚠️ RESEND_API_KEY not set. Emails will not be sent.");
+}
 
-// Health route
+const resend = new Resend(resendApiKey);
+
+// ---------- Routes ----------
 app.get("/", (_req, res) => {
   res.send("🚀 API is running successfully!");
 });
 
-// Contact route
 app.post("/api/contact", async (req, res) => {
   try {
     const { name, email, message } = req.body;
@@ -82,55 +74,44 @@ app.post("/api/contact", async (req, res) => {
         .json({ success: false, error: "All fields are required." });
     }
 
-    // 1) DB me save
+    // 1️⃣ DB me save
     const newContact = await Contact.create({ name, email, message });
     console.log("✅ Contact saved with id:", newContact._id);
 
-    // 2) Email TRY karo (fail ho to bhi response success)
+    // 2️⃣ Resend se email bhejne ki koshish
     let emailSent = false;
 
-    const recipients = [
-      process.env.EMAIL_TO,
-      process.env.EMAIL_USER,
-    ].filter(Boolean);
-
-    if (recipients.length > 0) {
-      const mailOptions = {
-        from: `"Portfolio Contact" <${process.env.EMAIL_USER}>`,
-        to: recipients.join(", "),
-        subject: `New portfolio contact from ${name}`,
-        html: `
-          <h2>New Portfolio Contact</h2>
-          <p><strong>Name:</strong> ${name}</p>
-          <p><strong>Email:</strong> ${email}</p>
-          <p><strong>Message:</strong></p>
-          <p>${message}</p>
-          <hr/>
-          <p>Stored in MongoDB with id: ${newContact._id}</p>
-        `,
-      };
-
+    if (resendApiKey && process.env.EMAIL_TO) {
       try {
-        const info = await transporter.sendMail(mailOptions);
-        console.log(
-          "✅ Email sent. MessageId:",
-          info.messageId,
-          "| Response:",
-          info.response
-        );
+        const result = await resend.emails.send({
+          from: "Portfolio Contact <onboarding@resend.dev>",
+          to: process.env.EMAIL_TO,
+          subject: `New portfolio contact from ${name}`,
+          html: `
+            <h2>New Portfolio Contact</h2>
+            <p><strong>Name:</strong> ${name}</p>
+            <p><strong>Email:</strong> ${email}</p>
+            <p><strong>Message:</strong></p>
+            <p>${message}</p>
+            <hr/>
+            <p>Stored in MongoDB with id: ${newContact._id}</p>
+          `,
+        });
+
+        console.log("✅ Resend email result:", result);
         emailSent = true;
       } catch (emailErr) {
-        console.error("⚠️ Email send failed (likely timeout):", emailErr);
+        console.error("⚠️ Resend email failed:", emailErr);
       }
     } else {
-      console.warn("⚠️ No EMAIL_TO / EMAIL_USER configured, skipping email");
+      console.warn("⚠️ RESEND_API_KEY or EMAIL_TO missing, skipping email");
     }
 
     return res.status(201).json({
       success: true,
       message: emailSent
         ? "Message saved & email sent successfully!"
-        : "Message saved successfully! (Email could not be sent from server.)",
+        : "Message saved successfully! (Email could not be sent.)",
       id: newContact._id,
       emailSent,
     });
@@ -143,7 +124,7 @@ app.post("/api/contact", async (req, res) => {
   }
 });
 
-// Start server
+// ---------- Start server ----------
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
