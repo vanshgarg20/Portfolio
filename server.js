@@ -10,18 +10,21 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// ✅ Middlewares (allow all origins in dev)
+// 🌐 CORS + JSON middleware
 app.use(
   cors({
-    origin: "*",
+    origin: "*", // Vercel, localhost, sab allowed
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type"],
   })
 );
 
+// Preflight OPTIONS ko handle karne ke liye
+app.options("*", cors());
+
 app.use(express.json());
 
-// ✅ MongoDB connection
+// 🛢️ MongoDB connection
 const MONGODB_URI = process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
@@ -39,7 +42,7 @@ mongoose
     process.exit(1);
   });
 
-// ✅ Schema & Model
+// 📄 Schema & Model
 const contactSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
@@ -51,18 +54,18 @@ const contactSchema = new mongoose.Schema(
 
 const Contact = mongoose.model("Contact", contactSchema);
 
-// ✅ Nodemailer transporter (with debug logs)
+// 📧 Nodemailer transporter
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
     user: process.env.EMAIL_USER, // sender gmail
-    pass: process.env.EMAIL_PASS, // app password (no spaces)
+    pass: process.env.EMAIL_PASS, // app password
   },
-  logger: true, // SMTP logs
+  logger: true,
   debug: true,
 });
 
-// 🔍 Check on startup if config is ok
+// Startup pe check
 transporter.verify((err, success) => {
   if (err) {
     console.error("❌ Nodemailer verify error:", err.message);
@@ -71,11 +74,12 @@ transporter.verify((err, success) => {
   }
 });
 
-// ✅ Routes
+// 🔁 Health route
 app.get("/", (_req, res) => {
   res.send("🚀 API is running successfully!");
 });
 
+// 📬 Contact route
 app.post("/api/contact", async (req, res) => {
   try {
     const { name, email, message } = req.body;
@@ -91,7 +95,7 @@ app.post("/api/contact", async (req, res) => {
     const newContact = await Contact.create({ name, email, message });
     console.log("✅ Contact saved with id:", newContact._id);
 
-    // 2) Email send to you (both EMAIL_TO and EMAIL_USER just in case)
+    // 2) Tumhe email bhejna
     const recipients = [
       process.env.EMAIL_TO,
       process.env.EMAIL_USER,
@@ -134,7 +138,7 @@ app.post("/api/contact", async (req, res) => {
   }
 });
 
-// ✅ Start server
+// 🚀 Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
