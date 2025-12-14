@@ -10,10 +10,10 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// 🌐 CORS + JSON middleware
+// CORS
 app.use(
   cors({
-    origin: "*", // Vercel, localhost, sab allowed
+    origin: "*",
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type"],
   })
@@ -21,7 +21,7 @@ app.use(
 
 app.use(express.json());
 
-// 🛢️ MongoDB connection
+// MongoDB
 const MONGODB_URI = process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
@@ -30,16 +30,14 @@ if (!MONGODB_URI) {
 }
 
 mongoose
-  .connect(MONGODB_URI, {
-    serverSelectionTimeoutMS: 10000,
-  })
+  .connect(MONGODB_URI, { serverSelectionTimeoutMS: 10000 })
   .then(() => console.log("✅ MongoDB connected successfully"))
   .catch((err) => {
     console.error("❌ MongoDB connection error:", err.message);
     process.exit(1);
   });
 
-// 📄 Schema & Model
+// Schema
 const contactSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
@@ -51,34 +49,28 @@ const contactSchema = new mongoose.Schema(
 
 const Contact = mongoose.model("Contact", contactSchema);
 
-// 📧 Nodemailer transporter – Gmail SMTP + App Password
+// Nodemailer (Gmail SMTP)
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 465,
-  secure: true, // 465 = SSL
+  secure: true,
   auth: {
-    user: process.env.EMAIL_USER, // your Gmail
-    pass: process.env.EMAIL_PASS, // Gmail App Password (16 chars, no spaces)
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
   logger: true,
   debug: true,
 });
 
-// Startup pe check (sirf log karega)
-transporter.verify((err, success) => {
-  if (err) {
-    console.error("❌ Nodemailer verify error:", err.message);
-  } else {
-    console.log("✅ Nodemailer is ready to send emails");
-  }
-});
+// ❌ verify hata diya – yahi timeout kar raha tha
+// transporter.verify(...)
 
-// 🔁 Health route
+// Health route
 app.get("/", (_req, res) => {
   res.send("🚀 API is running successfully!");
 });
 
-// 📬 Contact route
+// Contact route
 app.post("/api/contact", async (req, res) => {
   try {
     const { name, email, message } = req.body;
@@ -94,50 +86,53 @@ app.post("/api/contact", async (req, res) => {
     const newContact = await Contact.create({ name, email, message });
     console.log("✅ Contact saved with id:", newContact._id);
 
-    // 2) Email bhejo
+    // 2) Email TRY karo (fail ho to bhi response success)
+    let emailSent = false;
+
     const recipients = [
       process.env.EMAIL_TO,
       process.env.EMAIL_USER,
     ].filter(Boolean);
 
-    if (recipients.length === 0) {
-      console.error("❌ No EMAIL_TO / EMAIL_USER configured");
-      return res.status(500).json({
-        success: false,
-        error:
-          "Email configuration missing on server. Please try again later.",
-      });
+    if (recipients.length > 0) {
+      const mailOptions = {
+        from: `"Portfolio Contact" <${process.env.EMAIL_USER}>`,
+        to: recipients.join(", "),
+        subject: `New portfolio contact from ${name}`,
+        html: `
+          <h2>New Portfolio Contact</h2>
+          <p><strong>Name:</strong> ${name}</p>
+          <p><strong>Email:</strong> ${email}</p>
+          <p><strong>Message:</strong></p>
+          <p>${message}</p>
+          <hr/>
+          <p>Stored in MongoDB with id: ${newContact._id}</p>
+        `,
+      };
+
+      try {
+        const info = await transporter.sendMail(mailOptions);
+        console.log(
+          "✅ Email sent. MessageId:",
+          info.messageId,
+          "| Response:",
+          info.response
+        );
+        emailSent = true;
+      } catch (emailErr) {
+        console.error("⚠️ Email send failed (likely timeout):", emailErr);
+      }
+    } else {
+      console.warn("⚠️ No EMAIL_TO / EMAIL_USER configured, skipping email");
     }
-
-    console.log("📧 Sending email to:", recipients);
-
-    const mailOptions = {
-      from: `"Portfolio Contact" <${process.env.EMAIL_USER}>`,
-      to: recipients.join(", "),
-      subject: `New portfolio contact from ${name}`,
-      html: `
-        <h2>New Portfolio Contact</h2>
-        <p><strong>Name:</strong> ${name}</p>
-        <p><strong>Email:</strong> ${email}</p>
-        <p><strong>Message:</strong></p>
-        <p>${message}</p>
-        <hr/>
-        <p>Stored in MongoDB with id: ${newContact._id}</p>
-      `,
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log(
-      "✅ Email sent. MessageId:",
-      info.messageId,
-      "| Response:",
-      info.response
-    );
 
     return res.status(201).json({
       success: true,
-      message: "Message saved & email sent successfully!",
+      message: emailSent
+        ? "Message saved & email sent successfully!"
+        : "Message saved successfully! (Email could not be sent from server.)",
       id: newContact._id,
+      emailSent,
     });
   } catch (error) {
     console.error("❌ Error in /api/contact:", error);
@@ -148,7 +143,7 @@ app.post("/api/contact", async (req, res) => {
   }
 });
 
-// 🚀 Start server
+// Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
