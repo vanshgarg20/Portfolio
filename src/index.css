@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 🌈 Animated gradient effect for name & accent elements */
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* 🌓 Smooth color theme transition + natural scrolling */
+html {
+  scroll-behavior: smooth;
+  transition: background-color 0.5s ease, color 0.5s ease;
+}
+
+/* 🌍 Global responsive & theme base styles */
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-50 antialiased;
+  }
+
+  /* 🖼️ Make images responsive across all devices */
+  img {
+    @apply max-w-full h-auto select-none;
+  }
+
+  /* ✨ Smooth transition for all link colors */
+  a {
+    @apply transition-colors duration-300;
+  }
+}
+
+/* 🎨 Utility layer: reusable animation + effects */
+@layer utilities {
+  /* Animated gradient text */
+  .gradient-text {
+    background-size: 200% 200%;
+    animation: gradientShift 8s ease infinite;
+  }
+
+  /* Faster hero title animation */
+  .animate-gradient {
+    background-size: 220% 220%;
+    animation: gradientShift 6s ease-in-out infinite;
+  }
+
+  /* Prevent large text clipping */
+  .no-clip {
+    line-height: 1.3 !important;
+    padding-bottom: 0.5rem;
+    overflow: visible;
+  }
+
+  /* Smooth color transition for dark/light mode */
+  .theme-transition {
+    @apply transition-colors duration-500 ease-in-out;
+  }
+
+  /* Subtle floating hover animation (for buttons/cards) */
+  .hover-float:hover {
+    transform: translateY(-4px);
+    transition: transform 0.25s ease;
+  }
+}
