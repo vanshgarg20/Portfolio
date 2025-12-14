@@ -3,6 +3,11 @@ import { useState } from "react";
 
 type FormStatus = "idle" | "loading" | "success" | "error";
 
+// 🔗 Backend URL (env first, fallback to Render URL)
+const BACKEND_URL =
+  import.meta.env.VITE_BACKEND_URL ??
+  "https://portfolio-backend-kfr0.onrender.com";
+
 export default function Contact() {
   const [formData, setFormData] = useState({
     name: "",
@@ -30,7 +35,7 @@ export default function Contact() {
     setErrorMsg("");
 
     try {
-      const res = await fetch("http://127.0.0.1:4000/api/contact", {
+      const res = await fetch(`${BACKEND_URL}/api/contact`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -47,11 +52,19 @@ export default function Contact() {
       setStatus("success");
       setFormData({ name: "", email: "", message: "" });
 
+      // reset back to idle after a few seconds
       setTimeout(() => setStatus("idle"), 4000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Contact submit error:", err);
+
+      let message = "Failed to send message";
+
+      if (err instanceof Error && err.message) {
+        message = err.message;
+      }
+
       setStatus("error");
-      setErrorMsg(err.message || "Failed to send message");
+      setErrorMsg(message);
     }
   };
 
@@ -91,7 +104,8 @@ export default function Contact() {
             max-w-2xl mx-auto
           "
         >
-          Have a project in mind? Let&apos;s connect and build something amazing.
+          Have a project in mind? Let&apos;s connect and build something
+          amazing.
         </p>
 
         {/* Form card */}
@@ -217,7 +231,7 @@ export default function Contact() {
             {/* Status Message */}
             {status === "success" && (
               <p className="text-sm text-emerald-500">
-                ✅ Message sent successfully! I’ll reply soon.
+                ✅ Message sent successfully! I&apos;ll reply soon.
               </p>
             )}
             {status === "error" && (
